@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-memara",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "n8n community node for Memara memory system - Store and retrieve memories with semantic search in your workflows",
   "keywords": [
     "n8n-community-node-package",
