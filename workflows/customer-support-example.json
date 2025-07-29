@@ -1,0 +1,256 @@
+{
+  "name": "Customer Support Knowledge Base",
+  "version": 1,
+  "meta": {
+    "instanceId": "memara-example"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "webhook-start",
+      "name": "Webhook - Customer Issue",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "customer-issue"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and clean customer issue data\nconst issueData = $input.first().json;\n\nreturn {\n  customerName: issueData.customer_name || 'Unknown Customer',\n  issueType: issueData.issue_type || 'General',\n  description: issueData.description || '',\n  priority: issueData.priority || 'medium',\n  ticketId: issueData.ticket_id || Date.now().toString(),\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "extract-issue-data",
+      "name": "Extract Issue Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "memory",
+        "operation": "search",
+        "query": "={{ $json.issueType }} {{ $json.description }}",
+        "limit": 3,
+        "spaceId": "customer-support"
+      },
+      "id": "search-similar-issues",
+      "name": "Search Similar Issues",
+      "type": "memara",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "memaraApi": {
+          "id": "memara-api-credentials",
+          "name": "Memara API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-similar-issues",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-similar-issues",
+      "name": "Has Similar Issues?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate suggested resolution based on similar issues\nconst similarIssues = $input.first().json;\nconst currentIssue = $('Extract Issue Data').first().json;\n\nlet suggestions = [];\nif (Array.isArray(similarIssues) && similarIssues.length > 0) {\n  suggestions = similarIssues.map(issue => ({\n    title: issue.title || 'Previous Issue',\n    resolution: issue.content || 'No resolution found',\n    relevance: issue.distance || 0\n  }));\n}\n\nreturn {\n  ticketId: currentIssue.ticketId,\n  customerName: currentIssue.customerName,\n  issueType: currentIssue.issueType,\n  description: currentIssue.description,\n  suggestedResolutions: suggestions,\n  hasResolutions: suggestions.length > 0\n};"
+      },
+      "id": "generate-suggestions",
+      "name": "Generate Suggestions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "resource": "memory",
+        "operation": "create",
+        "content": "Ticket #{{ $('Extract Issue Data').first().json.ticketId }}: {{ $('Extract Issue Data').first().json.customerName }} - {{ $('Extract Issue Data').first().json.description }}\\n\\nResolution: [To be filled by agent]\\n\\nSimilar issues found: {{ $json.suggestedResolutions.length }}",
+        "title": "{{ $('Extract Issue Data').first().json.issueType }} - {{ $('Extract Issue Data').first().json.customerName }}",
+        "tags": "customer-support,{{ $('Extract Issue Data').first().json.issueType }},{{ $('Extract Issue Data').first().json.priority }}",
+        "spaceId": "customer-support"
+      },
+      "id": "store-new-ticket",
+      "name": "Store New Ticket",
+      "type": "memara",
+      "typeVersion": 1,
+      "position": [1340, 300],
+      "credentials": {
+        "memaraApi": {
+          "id": "memara-api-credentials",
+          "name": "Memara API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create response for agent with suggested resolutions\nconst suggestions = $input.first().json;\nconst issueData = $('Extract Issue Data').first().json;\n\nlet responseText = `New Customer Support Ticket\\n`;\nresponseText += `Ticket ID: ${issueData.ticketId}\\n`;\nresponseText += `Customer: ${issueData.customerName}\\n`;\nresponseText += `Issue Type: ${issueData.issueType}\\n`;\nresponseText += `Priority: ${issueData.priority}\\n`;\nresponseText += `Description: ${issueData.description}\\n\\n`;\n\nif (suggestions.hasResolutions) {\n  responseText += `SUGGESTED RESOLUTIONS FROM KNOWLEDGE BASE:\\n`;\n  suggestions.suggestedResolutions.forEach((suggestion, index) => {\n    responseText += `${index + 1}. ${suggestion.title}\\n`;\n    responseText += `   Resolution: ${suggestion.resolution}\\n\\n`;\n  });\n} else {\n  responseText += `No similar issues found in knowledge base.\\n`;\n  responseText += `This may be a new type of issue - please document the resolution.\\n`;\n}\n\nreturn {\n  ticketId: issueData.ticketId,\n  customerName: issueData.customerName,\n  responseText: responseText,\n  hasResolutions: suggestions.hasResolutions\n};"
+      },
+      "id": "format-agent-response",
+      "name": "Format Agent Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#customer-support",
+        "text": "{{ $json.responseText }}",
+        "username": "Memara Knowledge Bot"
+      },
+      "id": "notify-slack",
+      "name": "Notify Support Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1560, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credentials",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\\"status\\": \\"success\\", \\"ticketId\\": \\"{{ $('Extract Issue Data').first().json.ticketId }}\\", \\"message\\": \\"Ticket created and support team notified\\", \\"hasResolutions\\": {{ $('Generate Suggestions').first().json.hasResolutions }}}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.webhookResponse",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Customer Issue": {
+      "main": [
+        [
+          {
+            "node": "Extract Issue Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Issue Data": {
+      "main": [
+        [
+          {
+            "node": "Search Similar Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Similar Issues": {
+      "main": [
+        [
+          {
+            "node": "Has Similar Issues?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Similar Issues?": {
+      "main": [
+        [
+          {
+            "node": "Generate Suggestions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Agent Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Agent Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Suggestions": {
+      "main": [
+        [
+          {
+            "node": "Store New Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Agent Response": {
+      "main": [
+        [
+          {
+            "node": "Store New Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store New Ticket": {
+      "main": [
+        [
+          {
+            "node": "Notify Support Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Support Team": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-07-29T12:00:00.000Z"
+} 
