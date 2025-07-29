@@ -75,7 +75,6 @@ class Memara {
                                         content: '={{$parameter.content}}',
                                         title: '={{$parameter.title}}',
                                         tags: '={{$parameter.tags ? $parameter.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : []}}',
-                                        space_id: '={{$parameter.spaceId || $credentials.defaultSpaceId || null}}',
                                     },
                                 },
                                 output: {
@@ -102,7 +101,6 @@ class Memara {
                                     body: {
                                         query: '={{$parameter.query}}',
                                         limit: '={{$parameter.limit || 10}}',
-                                        space_id: '={{$parameter.spaceId || $credentials.defaultSpaceId || null}}',
                                     },
                                 },
                                 output: {
@@ -170,13 +168,12 @@ class Memara {
                         {
                             name: 'List Memories',
                             value: 'list',
-                            description: 'Get memories from a space',
+                            description: 'Get memories from your space',
                             routing: {
                                 request: {
                                     method: 'GET',
                                     url: '/v1/memories',
                                     qs: {
-                                        space_id: '={{$parameter.spaceId || $credentials.defaultSpaceId || undefined}}',
                                         limit: '={{$parameter.limit || 50}}',
                                         offset: '={{$parameter.offset || 0}}',
                                     },
@@ -336,20 +333,6 @@ class Memara {
                     required: true,
                     description: 'Search query to find relevant memories',
                     placeholder: 'What are you looking for?',
-                },
-                {
-                    displayName: 'Space ID',
-                    name: 'spaceId',
-                    type: 'string',
-                    displayOptions: {
-                        show: {
-                            resource: ['memory'],
-                            operation: ['create', 'search', 'list'],
-                        },
-                    },
-                    default: '',
-                    description: 'Memory space ID. Leave empty to use default space from credentials.',
-                    placeholder: 'space_abc123...',
                 },
                 {
                     displayName: 'Limit',

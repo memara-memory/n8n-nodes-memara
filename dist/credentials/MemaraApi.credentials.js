@@ -28,15 +28,6 @@ class MemaraApi {
                 description: 'Base URL for Memara API. Use default unless you have a custom deployment.',
                 placeholder: 'https://api.memara.io',
             },
-            {
-                displayName: 'Default Space ID',
-                name: 'defaultSpaceId',
-                type: 'string',
-                default: '',
-                required: false,
-                description: 'Default memory space to use when no space is specified in operations. Leave empty to use your default space.',
-                placeholder: 'space_abc123...',
-            },
         ];
         this.authenticate = {
             type: 'generic',
